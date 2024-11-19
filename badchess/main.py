@@ -130,14 +130,23 @@ def process_position(words: list[str], board: chess.Board):
         board.reset()
         [board.push_uci(move) for move in words[3:]]
     elif words[1] == "fen":
-        board = chess.Board(" ".join(words[2:8]))
+        board.set_fen(" ".join(words[2:8]))
         if len(words) >= 9 and words[8] == "moves":
             [board.push_uci(move) for move in words[9:]]
+    elif words[0] == "bestmove":
+        # Apply the best move received from ChatGPT
+        board.push_uci(words[1])
 
 
 def process_go(board: chess.Board):
-    move = find_best_move(board, depth=3)
-    send_command(f"bestmove {move}")
+    # Get the list of legal moves
+    legal_moves = find_best_move(board, depth=3)
+    
+    # Get the best move from ChatGPT
+    best_move = get_best_move_from_chatgpt(legal_moves)
+    
+    # Send the best move command
+    send_command(f"bestmove {best_move}")
 
 
 def process_stop():
@@ -152,8 +161,36 @@ def process_quit():
 
 
 def find_best_move(board: chess.Board, depth=3):
-    return alpha_beta_search(board, depth)
+    # Generate a list of legal moves
+    legal_moves = [move.uci() for move in board.legal_moves]
+    return legal_moves
 
+import requests
+
+def get_best_move_from_chatgpt(legal_moves: list[str]) -> str:
+    # Define the API endpoint and headers
+    api_url = "https://api.openai.com/v1/engines/davinci-codex/completions"
+    headers = {
+        "Authorization": f"Bearer YOUR_API_KEY",
+        "Content-Type": "application/json"
+    }
+
+    # Prepare the payload with the list of legal moves
+    payload = {
+        "prompt": f"Given the following legal chess moves: {legal_moves}, determine the best move.",
+        "max_tokens": 10
+    }
+
+    # Send the request to ChatGPT
+    response = requests.post(api_url, headers=headers, json=payload)
+
+    # Extract the best move from the response
+    if response.status_code == 200:
+        best_move = response.json().get("choices", [{}])[0].get("text", "").strip()
+        return best_move
+    else:
+        logging.error(f"Failed to get response from ChatGPT: {response.status_code}")
+        return ""
 
 n_positions_searched = 0
 
@@ -372,3 +409,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
