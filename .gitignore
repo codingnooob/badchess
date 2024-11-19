@@ -5,3 +5,4 @@ badchess.log
 polyglot.log
 .benchmarks
 build
+.config/api_key
